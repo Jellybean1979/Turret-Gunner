@@ -9,35 +9,46 @@
 <style>
   :root{
     --amber:#ffd21f;
-    --amber-dim:rgba(255,210,31,.4);
     --radar-red:#b8241f;
     --alert:#ff3b2f;
     --ink:#f3ead2;
     --void:#000;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%;background:var(--void);overflow:hidden;user-select:none;
-    font-family:"Chakra Petch","Segoe UI",system-ui,sans-serif;color:var(--ink)}
+  html,body{height:100%;background:var(--void);overflow:hidden;user-select:none;-webkit-user-select:none;
+    font-family:"Chakra Petch","Segoe UI",system-ui,sans-serif;color:var(--ink);touch-action:none}
   body.playing{cursor:none}
   #stage{position:fixed;inset:0}
   #stage canvas,#fx{position:absolute;inset:0;width:100%;height:100%}
   #fx{pointer-events:none;overflow:hidden}
-  #fx img{position:absolute;transform:translate(-50%,-50%);pointer-events:none;image-rendering:auto}
+  #fx img{position:absolute;transform:translate(-50%,-50%);pointer-events:none}
 
   .screen{position:fixed;inset:0;z-index:10;display:none;flex-direction:column;align-items:center;justify-content:center;
-    gap:1.1rem;padding:2rem;text-align:center;background:rgba(0,0,0,.72)}
+    gap:1.1rem;padding:2rem;text-align:center;background:rgba(0,0,0,.72);overflow-y:auto}
   .screen.show{display:flex}
   .screen h1{font-size:clamp(2.4rem,7vw,5rem);font-weight:700;color:var(--amber);letter-spacing:.04em;line-height:1}
   .screen h2{font-size:clamp(1.6rem,4vw,2.6rem);font-weight:700;color:var(--amber)}
   .screen p{max-width:34rem;line-height:1.55;font-size:1.05rem}
-  .keys{display:grid;grid-template-columns:auto auto;gap:.35rem 1.2rem;text-align:left;font-size:.98rem}
+  .modes{display:flex;flex-wrap:wrap;gap:1rem;justify-content:center}
+  .mode{display:flex;flex-direction:column;gap:.35rem;width:15rem;padding:1rem 1.1rem;text-align:left;
+    border:2px solid var(--amber);border-radius:4px;background:rgba(184,36,31,.25);color:var(--ink);font:inherit;cursor:pointer}
+  .mode strong{color:var(--amber);font-size:1.2rem}
+  .mode span{font-size:.92rem;line-height:1.4}
+  .mode:hover{background:rgba(184,36,31,.5)}
+  .mode:focus-visible,.screen button:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+  .keys{display:grid;grid-template-columns:auto auto;gap:.35rem 1.2rem;text-align:left;font-size:.95rem}
   .keys kbd{color:var(--amber);font-family:inherit;font-weight:600}
-  .screen button{font:inherit;font-weight:700;font-size:1.15rem;padding:.7rem 2.2rem;color:#1a0a00;background:var(--amber);
+  .btn{font:inherit;font-weight:700;font-size:1.1rem;padding:.65rem 2rem;color:#1a0a00;background:var(--amber);
     border:0;border-radius:3px;cursor:pointer}
-  .screen button:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+  .btn.ghost{background:none;color:var(--amber);border:2px solid var(--amber)}
+  .row{display:flex;gap:.8rem;flex-wrap:wrap;justify-content:center}
   .missing{color:var(--alert);font-size:.9rem;max-width:36rem}
   #versionTag{position:fixed;right:.6rem;bottom:.4rem;z-index:11;font-size:.75rem;opacity:.6;pointer-events:none}
   .credit{font-size:.85rem;opacity:.7}
+  #pauseBtn{position:fixed;top:.7rem;left:50%;transform:translateX(-50%);z-index:9;display:none;
+    font:inherit;font-weight:700;font-size:1rem;padding:.35rem .9rem;color:var(--amber);background:rgba(0,0,0,.45);
+    border:2px solid var(--amber);border-radius:3px;cursor:pointer}
+  body.playing #pauseBtn{display:block}
 </style>
 </head>
 <body>
@@ -49,37 +60,54 @@
 
 <section class="screen show" id="titleScreen">
   <h1>Turret Gunner</h1>
-  <p>Fighters are closing on the ship. Track them on the targeting display and knock them down before the shields give out.</p>
+  <p>Choose your run.</p>
+  <div class="modes">
+    <button class="mode" data-mode="fighters">
+      <strong>Fight the fighters</strong>
+      <span>Man the turret. Track fighters on the targeting display and shoot them down before your shields fail.</span>
+    </button>
+    <button class="mode" data-mode="asteroids">
+      <strong>Fly the asteroid field</strong>
+      <span>Take the pilot's seat. Steer through the field and survive as long as you can.</span>
+    </button>
+  </div>
   <div class="keys">
-    <kbd>Mouse</kbd><span>Aim</span>
-    <kbd>Click / Space</kbd><span>Fire (hold for auto-fire)</span>
-    <kbd>V</kbd><span>Switch cockpit / turret view</span>
+    <kbd>Mouse / finger</kbd><span>Aim the turret, or steer the ship</span>
+    <kbd>Click / Space</kbd><span>Fire (turret only, hold to auto-fire)</span>
+    <kbd>Arrows / WASD</kbd><span>Steer (asteroid field)</span>
     <kbd>P</kbd><span>Pause</span>
     <kbd>M</kbd><span>Mute</span>
     <kbd>E</kbd><span>Radar placement mode</span>
   </div>
-  <button id="startBtn">Start</button>
   <div class="missing" id="missingList"></div>
   <div class="credit">by Gary Langley</div>
 </section>
 
 <section class="screen" id="pauseScreen">
   <h2>Paused</h2>
-  <button id="resumeBtn">Resume</button>
+  <div class="row">
+    <button class="btn" id="resumeBtn">Resume</button>
+    <button class="btn ghost" data-action="menu">Change mode</button>
+  </div>
 </section>
 
 <section class="screen" id="overScreen">
-  <h2>Shields down</h2>
+  <h2 id="overTitle">Shields down</h2>
   <p id="finalStats"></p>
-  <button id="restartBtn">Play again</button>
+  <div class="row">
+    <button class="btn" id="restartBtn">Play again</button>
+    <button class="btn ghost" data-action="menu">Change mode</button>
+  </div>
 </section>
 
+<button id="pauseBtn" aria-label="Pause">Pause</button>
 <div id="versionTag">v—</div>
 
 <script>
 /* =====================================================================
    Turret Gunner — by Gary Langley
    Drop your assets in ./assets/ (or edit the paths below).
+   File names are case-sensitive on GitHub Pages.
    ===================================================================== */
 const CONFIG = {
   assets: {
@@ -89,12 +117,16 @@ const CONFIG = {
     tieRight:   'assets/tie-right.png',
     cockpit:    'assets/cockpit-frame.png',
     turret:     'assets/turret-window.png',
-    explosion:  'assets/tie-explosion.gif'
+    explosion:  'assets/tie-explosion.gif',
+    asteroid:   'assets/asteroid.png'
   },
   explosionMs: 900,        // how long the explosion GIF stays on screen
   explosionScale: 1.8,     // explosion size relative to the fighter
   frameFit: 'auto',        // 'auto' | 'cover' | 'contain' | 'stretch' for the cockpit/turret PNGs
   portraitZoom: 0.3,       // phones held upright: 0 = whole frame visible, 1 = fill screen
+
+  // Which frame each game mode uses
+  views: { fighters: 'turret', asteroids: 'cockpit' },
 
   // Radar panel placement, as fractions of the drawn frame image.
   // Press E in-game to drag/resize it, then copy the values from the console.
@@ -103,18 +135,29 @@ const CONFIG = {
     turret:  { x: 0.04, y: 0.70, w: 0.18, h: 0.24 }
   },
   // Where the laser bolts start, as fractions of the frame.
-  guns: {
-    cockpit: [[0.10, 1.02], [0.90, 1.02]],
-    turret:  [[0.06, 0.98], [0.94, 0.98]]
-  },
+  guns: { turret: [[0.06, 0.98], [0.94, 0.98]] },
 
-  fighterSize: 150,        // world units — bigger = larger on screen
+  // Fighter mode
+  fighterSize: 150,
   baseEnemies: 3,
   maxEnemies: 9,
   killsPerWave: 8,
-  shields: 100,
   damagePerHit: 12,
   fireCooldown: 0.16,
+
+  // Asteroid mode
+  rockCount: 16,           // asteroids in the field at the start
+  rockCountMax: 40,
+  rockPathBias: 0.35,      // share of asteroids spawned right in your path
+  rockSize: [80, 260],     // world radius range
+  rockDamage: 20,
+  shipRadius: 70,          // your ship's hit size; smaller = more forgiving
+  flySpeed: 950,           // starting forward speed
+  speedPerSector: 120,
+  sectorSeconds: 20,       // how often the field gets faster and denser
+  steerSpeed: [950, 650],  // sideways, vertical
+
+  shields: 100,
   github: { user: 'jellybean1979', repo: 'turret-gunner' }
 };
 
@@ -147,13 +190,15 @@ function loadImage(key, src){
 
 /* ---------- State ---------- */
 const S = {
-  mode: 'title', view: 'cockpit', edit: false, muted: false,
-  score: 0, kills: 0, wave: 1, shields: CONFIG.shields,
-  enemies: [], enemyBolts: [], playerBolts: [], particles: [],
-  cooldown: 0, gunSide: 0, shake: 0, flash: 0, t: 0,
+  mode: 'title', game: 'fighters', view: 'turret', edit: false, muted: false,
+  score: 0, kills: 0, wave: 1, shields: CONFIG.shields, closeCalls: 0,
+  enemies: [], rocks: [], streaks: [], enemyBolts: [], playerBolts: [], particles: [], popups: [],
+  cooldown: 0, gunSide: 0, shake: 0, flash: 0, invuln: 0, t: 0, runTime: 0,
+  cam: { x: 0, y: 0, vx: 0, vy: 0 }, roll: 0, speed: CONFIG.flySpeed,
   radarHit: null, lock: false
 };
-const input = { x: 0, y: 0, firing: false };
+const input = { x: 0, y: 0, firing: false, pointer: false };
+const keys = { left: false, right: false, up: false, down: false };
 input.x = W / 2; input.y = H / 2;
 
 /* ---------- Helpers ---------- */
@@ -161,9 +206,10 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rand = (a, b) => a + Math.random() * (b - a);
 
+// world -> screen, relative to the ship's position
 function project(x, y, z){
   const s = FOCAL / z;
-  return { sx: W / 2 + x * s, sy: H / 2 + y * s, s };
+  return { sx: W / 2 + (x - S.cam.x) * s, sy: H / 2 + (y - S.cam.y) * s, s };
 }
 
 function frameRect(){
@@ -215,10 +261,14 @@ const sfx = {
   laser: () => tone('sawtooth', 1500, 160, 0.18, 0.09),
   enemyShot: () => tone('square', 700, 220, 0.22, 0.04),
   boom: () => { noise(0.8, 0.5, 1400); tone('sine', 120, 40, 0.5, 0.25); },
-  hit: () => { noise(0.4, 0.45, 600); tone('square', 90, 50, 0.3, 0.12); }
+  hit: () => { noise(0.4, 0.45, 600); tone('square', 90, 50, 0.3, 0.12); },
+  crunch: () => { noise(0.7, 0.6, 500); tone('sine', 70, 30, 0.6, 0.3); },
+  whoosh: () => { noise(0.35, 0.12, 2400); }
 };
 
-/* ---------- Enemies ---------- */
+/* =====================================================================
+   FIGHTER MODE
+   ===================================================================== */
 function spawnEnemy(){
   const z = rand(2600, 3800);
   S.enemies.push({
@@ -242,15 +292,12 @@ function updateEnemies(dt){
     e.x += lateral * dt;
     e.y += (e.vy + Math.sin(e.phase * 0.7) * e.weaveAmp * 0.35) * dt;
     e.z += e.vz * dt;
-    // gentle pull back toward the middle so they stay in play
-    e.vx -= (e.x / e.z) * 120 * dt;
+    e.vx -= (e.x / e.z) * 120 * dt; // drift back toward the middle
 
-    // pick the sprite from sideways motion (with hysteresis)
     if (lateral > 170) e.sprite = 'tieRight';
     else if (lateral < -170) e.sprite = 'tieLeft';
     else if (Math.abs(lateral) < 110) e.sprite = 'tieFront';
 
-    // shoot at the player
     if (e.z < 1900 && e.z > 300){
       e.fireT -= dt;
       if (e.fireT <= 0){
@@ -260,7 +307,7 @@ function updateEnemies(dt){
         sfx.enemyShot();
       }
     }
-    if (e.z < 140) e.alive = false; // flew past
+    if (e.z < 140) e.alive = false;
   }
   S.enemies = S.enemies.filter(e => e.alive);
 }
@@ -281,12 +328,11 @@ function enemyUnder(x, y){
   return best;
 }
 
-/* ---------- Player fire ---------- */
 function fire(){
-  if (S.cooldown > 0) return;
+  if (S.game !== 'fighters' || S.cooldown > 0) return;
   S.cooldown = CONFIG.fireCooldown;
   const f = frameRect();
-  const g = CONFIG.guns[S.view][S.gunSide];
+  const g = CONFIG.guns.turret[S.gunSide];
   S.gunSide ^= 1;
   S.playerBolts.push({
     x0: f.x + g[0] * f.w, y0: f.y + g[1] * f.h,
@@ -312,31 +358,128 @@ function explode(x, y, size){
   const px = size * CONFIG.explosionScale;
   if (IMG.explosion){
     const img = document.createElement('img');
-    // the query string restarts the GIF from frame one each time
-    img.src = CONFIG.assets.explosion + '?b=' + (++boomCount);
+    img.src = CONFIG.assets.explosion + '?b=' + (++boomCount); // restarts the GIF
     img.style.left = x + 'px';
     img.style.top = y + 'px';
     img.style.width = px + 'px';
     fx.appendChild(img);
     setTimeout(() => img.remove(), CONFIG.explosionMs);
   } else {
-    for (let i = 0; i < 36; i++){
-      const a = rand(0, Math.PI * 2), v = rand(40, 260) * (size / 100);
-      S.particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rand(0.4, 0.9), max: 0.9 });
-    }
+    burst(x, y, size / 100, ['#fff4c0', '#ff8a1f']);
   }
 }
 
-/* ---------- Player takes a hit ---------- */
+function burst(x, y, scale, colors, count = 36){
+  for (let i = 0; i < count; i++){
+    const a = rand(0, Math.PI * 2), v = rand(40, 260) * scale;
+    S.particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rand(0.4, 0.9), max: 0.9,
+      color: colors[i % colors.length], size: rand(2, 5) });
+  }
+}
+
+/* =====================================================================
+   ASTEROID MODE
+   ===================================================================== */
+function sector(){ return 1 + Math.floor(S.runTime / CONFIG.sectorSeconds); }
+
+function spawnRock(zMin = 3000, zMax = 4400){
+  const z = rand(zMin, zMax);
+  const spreadX = z * (W / 2) / FOCAL * 1.5;
+  const spreadY = z * (H / 2) / FOCAL * 1.5;
+  const inPath = Math.random() < CONFIG.rockPathBias;
+  // lead the ship: aim at where it is heading, not just where it is
+  const leadX = S.cam.x + S.cam.vx * (z / S.speed) * 0.6;
+  const leadY = S.cam.y + S.cam.vy * (z / S.speed) * 0.6;
+  S.rocks.push({
+    x: inPath ? leadX + rand(-250, 250) : S.cam.x + rand(-spreadX, spreadX),
+    y: inPath ? leadY + rand(-200, 200) : S.cam.y + rand(-spreadY, spreadY),
+    z,
+    r: rand(CONFIG.rockSize[0], CONFIG.rockSize[1]),
+    vx: rand(-60, 60), vy: rand(-40, 40),
+    rot: rand(0, Math.PI * 2), spin: rand(-1.2, 1.2),
+    alive: true
+  });
+}
+
+function steerVector(){
+  let sx = 0, sy = 0;
+  if (keys.left) sx -= 1;
+  if (keys.right) sx += 1;
+  if (keys.up) sy -= 1;
+  if (keys.down) sy += 1;
+  if (sx || sy) return { sx, sy };
+  if (!input.pointer) return { sx: 0, sy: 0 };
+  const dz = v => Math.abs(v) < 0.08 ? 0 : clamp(v, -1, 1);
+  return { sx: dz((input.x - W / 2) / (W * 0.35)), sy: dz((input.y - H / 2) / (H * 0.35)) };
+}
+
+function updateRocks(dt){
+  S.runTime += dt;
+  const sec = sector();
+  S.speed = CONFIG.flySpeed + (sec - 1) * CONFIG.speedPerSector;
+  S.score += Math.round(dt * S.speed / 10);
+
+  // steering with a little momentum
+  const st = steerVector();
+  S.cam.vx = lerp(S.cam.vx, st.sx * CONFIG.steerSpeed[0], Math.min(1, dt * 4));
+  S.cam.vy = lerp(S.cam.vy, st.sy * CONFIG.steerSpeed[1], Math.min(1, dt * 4));
+  S.cam.x += S.cam.vx * dt;
+  S.cam.y += S.cam.vy * dt;
+  S.roll = lerp(S.roll, -S.cam.vx / CONFIG.steerSpeed[0] * 0.18, Math.min(1, dt * 5));
+
+  const target = Math.min(CONFIG.rockCount + (sec - 1) * 3, CONFIG.rockCountMax);
+  while (S.rocks.length < target) spawnRock();
+
+  for (const r of S.rocks){
+    r.x += r.vx * dt; r.y += r.vy * dt;
+    r.z -= S.speed * dt;
+    r.rot += r.spin * dt;
+    if (r.z <= 60){
+      r.alive = false;
+      const d = Math.hypot(r.x - S.cam.x, r.y - S.cam.y);
+      if (d < r.r * 0.8 + CONFIG.shipRadius){
+        if (S.invuln <= 0){
+          burst(W / 2, H / 2, 2.2, ['#8a8077', '#c9bfb2', '#5b544e'], 50);
+          sfx.crunch();
+          playerHit(CONFIG.rockDamage);
+          S.invuln = 0.6;
+        }
+      } else if (d < r.r + CONFIG.shipRadius + 220){
+        S.closeCalls++;
+        S.score += 50;
+        S.popups.push({ text: 'Close call +50', t: 1 });
+        sfx.whoosh();
+      }
+    }
+  }
+  S.rocks = S.rocks.filter(r => r.alive);
+}
+
+// speed streaks so forward motion reads clearly
+function updateStreaks(dt){
+  while (S.streaks.length < 90){
+    const z = rand(400, 4000);
+    S.streaks.push({ x: S.cam.x + rand(-1, 1) * z * W / FOCAL, y: S.cam.y + rand(-1, 1) * z * H / FOCAL, z });
+  }
+  for (const s of S.streaks) s.z -= S.speed * 1.4 * dt;
+  S.streaks = S.streaks.filter(s => {
+    if (s.z < 60) return false;
+    const p = project(s.x, s.y, s.z);
+    return p.sx > -50 && p.sx < W + 50 && p.sy > -50 && p.sy < H + 50;
+  });
+}
+
+/* =====================================================================
+   SHARED
+   ===================================================================== */
 const RADAR = {
-  // corners TL, TR, BR, BL in panel fractions — two overlapping skewed grids
   left:  { q: [[0.20,0.10],[0.60,0.22],[0.60,0.76],[0.20,0.92]], cols: 5, rows: 6 },
   right: { q: [[0.50,0.06],[0.80,0.20],[0.80,0.80],[0.50,0.94]], cols: 5, rows: 8 },
   ellipse: { cx: 0.565, cy: 0.5, rx: 0.06, ry: 0.2 }
 };
 
-function playerHit(){
-  S.shields = Math.max(0, S.shields - CONFIG.damagePerHit);
+function playerHit(dmg = CONFIG.damagePerHit){
+  S.shields = Math.max(0, S.shields - dmg);
   S.shake = 0.4; S.flash = 0.35;
   const grid = Math.random() < 0.5 ? 'left' : 'right';
   const g = RADAR[grid];
@@ -345,48 +488,58 @@ function playerHit(){
   if (S.shields <= 0) gameOver();
 }
 
-/* ---------- Update ---------- */
 function update(dt){
   S.t += dt;
   S.cooldown = Math.max(0, S.cooldown - dt);
   S.shake = Math.max(0, S.shake - dt);
   S.flash = Math.max(0, S.flash - dt);
+  S.invuln = Math.max(0, S.invuln - dt);
   if (S.radarHit && (S.radarHit.t -= dt) <= 0) S.radarHit = null;
 
-  if (input.firing && !S.edit) fire();
-  updateEnemies(dt);
-
-  for (const b of S.playerBolts){
-    b.t += dt;
-    if (b.t >= b.dur && b.target){ killEnemy(b.target); b.target = null; }
+  if (S.game === 'fighters'){
+    if (input.firing && !S.edit) fire();
+    updateEnemies(dt);
+    for (const b of S.playerBolts){
+      b.t += dt;
+      if (b.t >= b.dur && b.target){ killEnemy(b.target); b.target = null; }
+    }
+    S.playerBolts = S.playerBolts.filter(b => b.t < b.dur + 0.05);
+    for (const b of S.enemyBolts){
+      b.t += dt;
+      if (b.t >= b.dur && !b.done){ b.done = true; playerHit(); }
+    }
+    S.enemyBolts = S.enemyBolts.filter(b => !b.done);
+    S.lock = !!enemyUnder(input.x, input.y);
+  } else {
+    updateRocks(dt);
+    updateStreaks(dt);
+    S.lock = S.rocks.some(r => r.z < 1200 && Math.hypot(r.x - S.cam.x, r.y - S.cam.y) < r.r + CONFIG.shipRadius);
   }
-  S.playerBolts = S.playerBolts.filter(b => b.t < b.dur + 0.05);
-
-  for (const b of S.enemyBolts){
-    b.t += dt;
-    if (b.t >= b.dur && !b.done){ b.done = true; playerHit(); }
-  }
-  S.enemyBolts = S.enemyBolts.filter(b => !b.done);
 
   for (const p of S.particles){ p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; }
   S.particles = S.particles.filter(p => p.life > 0);
-
-  S.lock = !!enemyUnder(input.x, input.y);
+  for (const p of S.popups) p.t -= dt;
+  S.popups = S.popups.filter(p => p.t > 0);
 }
 
 /* ---------- Draw: game layer ---------- */
 const stars = Array.from({ length: 220 }, () => ({ x: Math.random(), y: Math.random(), z: rand(0.2, 1) }));
 
 function drawBackground(ctx){
-  const panX = (input.x / W - 0.5) * -40, panY = (input.y / H - 0.5) * -24;
+  let panX, panY;
+  if (S.game === 'asteroids'){
+    panX = -S.cam.vx * 0.03; panY = -S.cam.vy * 0.03;
+  } else {
+    panX = (input.x / W - 0.5) * -40; panY = (input.y / H - 0.5) * -24;
+  }
   const img = IMG.background;
   if (img){
-    const scale = Math.max(W / img.width, H / img.height) * 1.12;
+    const scale = Math.max(W / img.width, H / img.height) * 1.2;
     const w = img.width * scale, h = img.height * scale;
     const drift = Math.sin(S.t * 0.05) * 18;
     ctx.drawImage(img, (W - w) / 2 + panX + drift, (H - h) / 2 + panY, w, h);
   } else {
-    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#000'; ctx.fillRect(-W, -H, W * 3, H * 3);
     ctx.fillStyle = '#fff';
     for (const s of stars){
       ctx.globalAlpha = s.z;
@@ -401,7 +554,6 @@ function drawEnemies(ctx){
   for (const e of list){
     const p = enemyScreen(e), size = p.half * 2;
     const img = IMG[e.sprite] || IMG.tieFront;
-    // fade in from the distance
     ctx.globalAlpha = clamp((3800 - e.z) / 700, 0, 1);
     if (img){
       const h = size * img.height / img.width;
@@ -410,6 +562,39 @@ function drawEnemies(ctx){
       ctx.strokeStyle = '#9ab'; ctx.lineWidth = 2;
       ctx.strokeRect(p.sx - size / 2, p.sy - size / 3, size, size * 0.66);
     }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawStreaks(ctx){
+  ctx.strokeStyle = '#cfe0ff'; ctx.lineCap = 'round';
+  for (const s of S.streaks){
+    const a = project(s.x, s.y, s.z), b = project(s.x, s.y, s.z + S.speed * 0.05);
+    ctx.globalAlpha = clamp(1 - s.z / 4000, 0, 0.8);
+    ctx.lineWidth = clamp(a.s * 2, 0.5, 3);
+    ctx.beginPath(); ctx.moveTo(b.sx, b.sy); ctx.lineTo(a.sx, a.sy); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawRocks(ctx){
+  const list = [...S.rocks].sort((a, b) => b.z - a.z);
+  const img = IMG.asteroid;
+  for (const r of list){
+    const p = project(r.x, r.y, r.z), size = r.r * 2 * p.s;
+    if (p.sx + size < 0 || p.sx - size > W || p.sy + size < 0 || p.sy - size > H) continue;
+    ctx.globalAlpha = clamp((4400 - r.z) / 800, 0, 1);
+    ctx.save();
+    ctx.translate(p.sx, p.sy); ctx.rotate(r.rot);
+    if (img){
+      ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    } else {
+      ctx.fillStyle = '#6d655e';
+      ctx.beginPath(); ctx.arc(0, 0, size / 2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#4d4741';
+      ctx.beginPath(); ctx.arc(size * 0.15, -size * 0.1, size * 0.12, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
   }
   ctx.globalAlpha = 1;
 }
@@ -431,14 +616,23 @@ function drawGame(){
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   const sh = S.shake * 22;
   ctx.translate(rand(-sh, sh), rand(-sh, sh));
+  if (S.game === 'asteroids'){
+    // bank the view when steering sideways
+    ctx.translate(W / 2, H / 2); ctx.rotate(S.roll); ctx.translate(-W / 2, -H / 2);
+  }
   drawBackground(ctx);
-  drawEnemies(ctx);
-  for (const b of S.enemyBolts) drawBolt(ctx, b, '#4dff6a', 1.5, 9);
-  for (const b of S.playerBolts) drawBolt(ctx, b, '#ff3324', 7, 1.5);
+  if (S.game === 'fighters'){
+    drawEnemies(ctx);
+    for (const b of S.enemyBolts) drawBolt(ctx, b, '#4dff6a', 1.5, 9);
+    for (const b of S.playerBolts) drawBolt(ctx, b, '#ff3324', 7, 1.5);
+  } else {
+    drawStreaks(ctx);
+    drawRocks(ctx);
+  }
   for (const p of S.particles){
     ctx.globalAlpha = p.life / p.max;
-    ctx.fillStyle = p.life > 0.5 ? '#fff4c0' : '#ff8a1f';
-    ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
   }
   ctx.globalAlpha = 1;
 }
@@ -473,9 +667,9 @@ function drawMarker(ctx, x, y, cx, cy, size){
   const a = Math.atan2(cy - y, cx - x);
   ctx.save(); ctx.translate(x, y); ctx.rotate(a);
   ctx.beginPath();
-  ctx.moveTo(size, 0);                    // tip points toward the ship
+  ctx.moveTo(size, 0);
   ctx.lineTo(-size * 0.8, -size * 0.55);
-  ctx.lineTo(-size * 0.35, 0);            // notch
+  ctx.lineTo(-size * 0.35, 0);
   ctx.lineTo(-size * 0.8, size * 0.55);
   ctx.closePath(); ctx.fill();
   ctx.restore();
@@ -489,7 +683,6 @@ function drawRadar(ctx){
 
   ctx.fillStyle = '#b8241f';
   ctx.fillRect(0, 0, r.w, r.h);
-  // faint scanlines
   ctx.fillStyle = 'rgba(0,0,0,.12)';
   for (let y = 0; y < r.h; y += 3) ctx.fillRect(0, y, r.w, 1);
 
@@ -500,7 +693,6 @@ function drawRadar(ctx){
 
   const L = scaleQuad(RADAR.left.q, r), R = scaleQuad(RADAR.right.q, r);
 
-  // hit cell goes solid yellow, blinking as it fades
   if (S.radarHit){
     const h = S.radarHit, blink = h.t > 0.6 || Math.floor(h.t * 10) % 2 === 0;
     if (blink){
@@ -511,7 +703,6 @@ function drawRadar(ctx){
   drawGrid(ctx, L, RADAR.left.cols, RADAR.left.rows);
   drawGrid(ctx, R, RADAR.right.cols, RADAR.right.rows);
 
-  // center ellipse — thickens and fills when the crosshair is on a target
   const E = RADAR.ellipse;
   ctx.beginPath();
   ctx.ellipse(E.cx * r.w, E.cy * r.h, E.rx * r.w, E.ry * r.h, 0, 0, Math.PI * 2);
@@ -519,14 +710,17 @@ function drawRadar(ctx){
   ctx.lineWidth = S.lock ? lw * 2.2 : lw * 1.4;
   ctx.stroke();
 
-  // enemy markers: position = bearing, size = closeness
+  // markers: fighters in fighter mode, nearby asteroids in asteroid mode
   const cx = E.cx * r.w, cy = E.cy * r.h;
-  for (const e of S.enemies){
-    const nx = clamp((e.x / e.z) * FOCAL / (W / 2), -1.15, 1.15);
-    const ny = clamp((e.y / e.z) * FOCAL / (H / 2), -1.15, 1.15);
+  const objs = S.game === 'fighters'
+    ? S.enemies.map(e => ({ x: e.x, y: e.y, z: e.z, far: 3800 }))
+    : S.rocks.filter(o => o.z < 2600).map(o => ({ x: o.x, y: o.y, z: o.z, far: 2600 }));
+  for (const o of objs){
+    const nx = clamp(((o.x - S.cam.x) / o.z) * FOCAL / (W / 2), -1.15, 1.15);
+    const ny = clamp(((o.y - S.cam.y) / o.z) * FOCAL / (H / 2), -1.15, 1.15);
     const mx = clamp(cx + nx * r.w * 0.46, r.w * 0.05, r.w * 0.95);
     const my = clamp(cy + ny * r.h * 0.44, r.h * 0.06, r.h * 0.94);
-    const close = clamp(1 - e.z / 3800, 0, 1);
+    const close = clamp(1 - o.z / o.far, 0, 1);
     drawMarker(ctx, mx, my, cx, cy, r.w * (0.025 + close * 0.04));
   }
   ctx.restore();
@@ -535,6 +729,7 @@ function drawRadar(ctx){
     ctx.strokeStyle = '#4dd2ff'; ctx.setLineDash([6, 4]); ctx.lineWidth = 2;
     ctx.strokeRect(r.x, r.y, r.w, r.h); ctx.setLineDash([]);
     ctx.fillStyle = '#4dd2ff'; ctx.font = '600 14px "Chakra Petch", sans-serif';
+    ctx.textBaseline = 'alphabetic';
     ctx.fillText('Drag to move, scroll to resize, E to finish', r.x, r.y - 8);
   }
 }
@@ -552,12 +747,25 @@ function drawCrosshair(ctx){
   ctx.stroke();
 }
 
+// asteroid mode: a flight marker that leans the way you're steering
+function drawFlightMarker(ctx){
+  const x = W / 2 + (S.cam.vx / CONFIG.steerSpeed[0]) * 60;
+  const y = H / 2 + (S.cam.vy / CONFIG.steerSpeed[1]) * 40;
+  ctx.strokeStyle = S.lock ? '#ff3b2f' : '#ffd21f'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2);
+  ctx.moveTo(x - 30, y); ctx.lineTo(x - 10, y);
+  ctx.moveTo(x + 10, y); ctx.lineTo(x + 30, y);
+  ctx.moveTo(x, y - 10); ctx.lineTo(x, y - 22);
+  ctx.stroke();
+}
+
 function drawStats(ctx){
   ctx.font = '600 18px "Chakra Petch", sans-serif';
   ctx.fillStyle = '#ffd21f';
   ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
   ctx.fillText('Score ' + S.score, 20, 18);
-  ctx.fillText('Wave ' + S.wave, 20, 42);
+  ctx.fillText(S.game === 'fighters' ? 'Wave ' + S.wave : 'Sector ' + sector(), 20, 42);
   const bw = Math.min(260, W * 0.3), bx = W - bw - 20;
   ctx.textAlign = 'right';
   ctx.fillText('Shields', bx - 10, 18);
@@ -566,12 +774,22 @@ function drawStats(ctx){
   const pct = S.shields / CONFIG.shields;
   ctx.fillStyle = pct > 0.35 ? '#ffd21f' : '#ff3b2f';
   ctx.fillRect(bx + 3, 23, (bw - 6) * pct, 10);
+
+  ctx.textAlign = 'center';
+  for (const p of S.popups){
+    ctx.globalAlpha = clamp(p.t, 0, 1);
+    ctx.fillStyle = '#ffd21f';
+    ctx.fillText(p.text, W / 2, H * 0.3 - (1 - p.t) * 30);
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'left';
 }
 
 function drawHud(){
   const ctx = hctx;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.clearRect(0, 0, W, H);
+  if (S.mode === 'title') return;
   const sh = S.shake * 10;
   ctx.save();
   ctx.translate(rand(-sh, sh), rand(-sh, sh));
@@ -581,7 +799,9 @@ function drawHud(){
   ctx.restore();
   if (S.flash > 0){ ctx.fillStyle = `rgba(255,40,20,${S.flash * 0.9})`; ctx.fillRect(0, 0, W, H); }
   drawStats(ctx);
-  if (S.mode === 'play') drawCrosshair(ctx);
+  if (S.mode === 'play'){
+    if (S.game === 'fighters') drawCrosshair(ctx); else drawFlightMarker(ctx);
+  }
 }
 
 /* ---------- Loop ---------- */
@@ -604,40 +824,62 @@ function show(name){
   for (const k in screens) screens[k].classList.toggle('show', k === name);
   document.body.classList.toggle('playing', !name);
 }
-function startGame(){
-  Object.assign(S, { mode: 'play', score: 0, kills: 0, wave: 1, shields: CONFIG.shields,
-    enemies: [], enemyBolts: [], playerBolts: [], particles: [], radarHit: null, shake: 0, flash: 0 });
+function startGame(mode = S.game){
+  Object.assign(S, {
+    mode: 'play', game: mode, view: CONFIG.views[mode], edit: false,
+    score: 0, kills: 0, wave: 1, shields: CONFIG.shields, closeCalls: 0,
+    enemies: [], rocks: [], streaks: [], enemyBolts: [], playerBolts: [], particles: [], popups: [],
+    radarHit: null, shake: 0, flash: 0, invuln: 0, runTime: 0, roll: 0,
+    cam: { x: 0, y: 0, vx: 0, vy: 0 }, speed: CONFIG.flySpeed
+  });
+  if (mode === 'asteroids'){
+    // pre-fill the field at staggered depths so it isn't empty at the start
+    for (let i = 0; i < CONFIG.rockCount; i++) spawnRock(1500, 4400);
+    input.x = W / 2; input.y = H / 2;
+  }
   fx.innerHTML = '';
   ac().resume();
   show(null);
 }
 function gameOver(){
   S.mode = 'over'; input.firing = false;
-  document.getElementById('finalStats').textContent = `Score ${S.score}, ${S.kills} fighters destroyed, wave ${S.wave}.`;
+  document.getElementById('overTitle').textContent = S.game === 'fighters' ? 'Shields down' : 'Hull breached';
+  document.getElementById('finalStats').textContent = S.game === 'fighters'
+    ? `Score ${S.score}. ${S.kills} fighters destroyed, wave ${S.wave}.`
+    : `Score ${S.score}. Reached sector ${sector()} with ${S.closeCalls} close calls.`;
   show('over');
 }
 function togglePause(){
   if (S.mode === 'play'){ S.mode = 'paused'; input.firing = false; show('pause'); }
   else if (S.mode === 'paused'){ S.mode = 'play'; show(null); }
 }
+function toMenu(){
+  S.mode = 'title'; input.firing = false; fx.innerHTML = '';
+  show('title');
+}
 
-document.getElementById('startBtn').onclick = startGame;
-document.getElementById('restartBtn').onclick = startGame;
+document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', () => startGame(b.dataset.mode)));
+document.querySelectorAll('[data-action="menu"]').forEach(b => b.addEventListener('click', toMenu));
+document.getElementById('restartBtn').onclick = () => startGame();
 document.getElementById('resumeBtn').onclick = togglePause;
+document.getElementById('pauseBtn').onclick = togglePause;
 addEventListener('blur', () => { if (S.mode === 'play') togglePause(); });
 
 /* ---------- Input ---------- */
 let drag = null;
+const isUI = e => e.target.closest && e.target.closest('button');
+
 addEventListener('mousemove', e => {
-  input.x = e.clientX; input.y = e.clientY;
+  input.x = e.clientX; input.y = e.clientY; input.pointer = true;
   if (drag){
     const f = frameRect(), r = CONFIG.radar[S.view];
     r.x = drag.rx + (e.clientX - drag.x) / f.w;
     r.y = drag.ry + (e.clientY - drag.y) / f.h;
   }
 });
+addEventListener('mouseleave', () => { input.pointer = false; });
 addEventListener('mousedown', e => {
-  if (S.mode !== 'play') return;
+  if (S.mode !== 'play' || isUI(e)) return;
   if (S.edit){ const r = CONFIG.radar[S.view]; drag = { x: e.clientX, y: e.clientY, rx: r.x, ry: r.y }; return; }
   input.firing = true;
 });
@@ -650,24 +892,36 @@ addEventListener('wheel', e => {
   const r = CONFIG.radar[S.view], k = e.deltaY < 0 ? 1.05 : 0.95;
   r.w *= k; r.h *= k; logRadar();
 }, { passive: true });
+
 addEventListener('touchstart', e => {
-  const t = e.touches[0]; input.x = t.clientX; input.y = t.clientY;
+  if (isUI(e)) return;
+  const t = e.touches[0]; input.x = t.clientX; input.y = t.clientY; input.pointer = true;
   if (S.mode === 'play'){ input.firing = true; e.preventDefault(); }
 }, { passive: false });
 addEventListener('touchmove', e => {
-  const t = e.touches[0]; input.x = t.clientX; input.y = t.clientY; e.preventDefault();
+  const t = e.touches[0]; input.x = t.clientX; input.y = t.clientY;
+  if (S.mode === 'play') e.preventDefault();
 }, { passive: false });
-addEventListener('touchend', () => { input.firing = false; });
+addEventListener('touchend', () => {
+  input.firing = false;
+  // lifting your finger centers the stick in asteroid mode
+  if (S.game === 'asteroids'){ input.x = W / 2; input.y = H / 2; input.pointer = false; }
+});
 
+const KEYMAP = { arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right', arrowup: 'up', w: 'up', arrowdown: 'down', s: 'down' };
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
+  if (KEYMAP[k]){ keys[KEYMAP[k]] = true; if (S.mode === 'play') e.preventDefault(); }
   if (k === ' ' && S.mode === 'play'){ input.firing = true; e.preventDefault(); }
-  if (k === 'v') S.view = S.view === 'cockpit' ? 'turret' : 'cockpit';
   if (k === 'p' || k === 'escape') togglePause();
   if (k === 'm') S.muted = !S.muted;
   if (k === 'e' && S.mode === 'play'){ S.edit = !S.edit; if (!S.edit) logRadar(); }
 });
-addEventListener('keyup', e => { if (e.key === ' ') input.firing = false; });
+addEventListener('keyup', e => {
+  const k = e.key.toLowerCase();
+  if (KEYMAP[k]) keys[KEYMAP[k]] = false;
+  if (k === ' ') input.firing = false;
+});
 
 function logRadar(){
   const r = CONFIG.radar[S.view], f = n => +n.toFixed(3);
@@ -690,9 +944,9 @@ async function updateCommitHash(){
 
 /* ---------- Boot ---------- */
 (async () => {
-  const keys = Object.keys(CONFIG.assets);
-  const ok = await Promise.all(keys.map(k => loadImage(k, CONFIG.assets[k])));
-  const missing = keys.filter((k, i) => !ok[i]).map(k => CONFIG.assets[k]);
+  const names = Object.keys(CONFIG.assets);
+  const ok = await Promise.all(names.map(k => loadImage(k, CONFIG.assets[k])));
+  const missing = names.filter((k, i) => !ok[i]).map(k => CONFIG.assets[k]);
   if (missing.length){
     document.getElementById('missingList').textContent =
       'Not found, using stand-ins: ' + missing.join(', ') + '. Check the paths in CONFIG.assets.';
