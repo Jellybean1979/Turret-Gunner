@@ -93,7 +93,8 @@ const CONFIG = {
   },
   explosionMs: 900,        // how long the explosion GIF stays on screen
   explosionScale: 1.8,     // explosion size relative to the fighter
-  frameFit: 'cover',       // 'cover' | 'contain' | 'stretch' for the cockpit/turret PNGs
+  frameFit: 'auto',        // 'auto' | 'cover' | 'contain' | 'stretch' for the cockpit/turret PNGs
+  portraitZoom: 0.3,       // phones held upright: 0 = whole frame visible, 1 = fill screen
 
   // Radar panel placement, as fractions of the drawn frame image.
   // Press E in-game to drag/resize it, then copy the values from the console.
@@ -168,10 +169,12 @@ function project(x, y, z){
 function frameRect(){
   const img = IMG[S.view];
   if (!img || CONFIG.frameFit === 'stretch') return { x: 0, y: 0, w: W, h: H };
-  const ir = img.width / img.height, sr = W / H;
-  const cover = CONFIG.frameFit === 'cover';
-  let w, h;
-  if ((ir > sr) === cover) { h = H; w = H * ir; } else { w = W; h = W / ir; }
+  const contain = Math.min(W / img.width, H / img.height);
+  const cover   = Math.max(W / img.width, H / img.height);
+  let zoom = CONFIG.frameFit === 'contain' ? 0 : 1;
+  if (CONFIG.frameFit === 'auto') zoom = W >= H ? 1 : CONFIG.portraitZoom;
+  const s = contain + (cover - contain) * zoom;
+  const w = img.width * s, h = img.height * s;
   return { x: (W - w) / 2, y: (H - h) / 2, w, h };
 }
 function radarRect(){
